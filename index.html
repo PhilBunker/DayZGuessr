@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Panoramic View with HDR</title>
+    <title>Panoramic View</title>
     <style>
       body { margin: 0; overflow: hidden; } /* Remove body margins and prevent scroll */
       canvas { display: block; width: 100%; height: 100vh; } /* Canvas takes full viewport height */
@@ -13,7 +13,6 @@
     <script type="module">
       import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
       import { OrbitControls } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/controls/OrbitControls.js';
-      import { RGBELoader } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/loaders/RGBELoader.js';
 
       let scene, camera, renderer, controls;
 
@@ -36,10 +35,19 @@
           return 0.1 * camera.fov / 75;
         };
 
-        // Compute the target for a 140° left rotation.
+        /* Compute the target for a 95° left rotation.
+           The default forward direction is (0, 0, -1).
+           So, rotating by an angle φ about the Y-axis gives:
+             x = -sin(φ)
+             z = -cos(φ)
+           Here φ is 95° converted to radians.
+        */
         const phi = THREE.MathUtils.degToRad(140);
+        // newTarget is a unit vector in the desired direction
         const newTarget = new THREE.Vector3(-Math.sin(phi), 0, -Math.cos(phi));
+        // Set the camera to look at the new target.
         camera.lookAt(newTarget);
+        // Also update the OrbitControls target.
         controls.target.copy(newTarget);
         controls.update();
 
@@ -51,21 +59,16 @@
           camera.updateProjectionMatrix();
         }, { passive: false });
 
-        // Load the HDR texture using RGBELoader instead of TextureLoader
-        new RGBELoader()
-          .setDataType(THREE.UnsignedByteType) // use UnsignedByteType for compatibility; adjust if needed
-          .load('pano.hdr', function(texture) {
-            // Set texture mapping for equirectangular projection
-            texture.mapping = THREE.EquirectangularReflectionMapping;
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.load("pano.jpg", function(texture) {
+          const geometry = new THREE.SphereGeometry(500, 60, 40);
+          geometry.scale(-1, 1, 1);
+          const material = new THREE.MeshBasicMaterial({ map: texture });
+          const mesh = new THREE.Mesh(geometry, material);
+          scene.add(mesh);
 
-            const geometry = new THREE.SphereGeometry(500, 60, 40);
-            geometry.scale(-1, 1, 1);
-            const material = new THREE.MeshBasicMaterial({ map: texture });
-            const mesh = new THREE.Mesh(geometry, material);
-            scene.add(mesh);
-
-            animate();
-          });
+          animate();
+        });
 
         // Handle window resize
         window.addEventListener('resize', () => {
@@ -79,6 +82,7 @@
 
       function animate() {
          requestAnimationFrame(animate);
+         // Adjust the rotation speed relative to the current FOV.
          const baseFov = 75;
          const baseSpeed = -0.3;
          controls.rotateSpeed = (camera.fov / baseFov) * baseSpeed;
